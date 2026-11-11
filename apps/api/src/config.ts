@@ -1,0 +1,44 @@
+/**
+ * Runtime configuration. All values can be overridden with environment variables.
+ * See `.env.example` at the repository root.
+ */
+const env = process.env;
+
+const DEV_JWT_SECRET = 'dev-only-insecure-jwt-secret-change-me';
+
+export const config = {
+  nodeEnv: env.NODE_ENV ?? 'development',
+  port: Number(env.PORT ?? 4000),
+  databaseUrl: env.DATABASE_URL ?? 'postgres://postgres@localhost:5432/shiftfocus',
+  autoMigrate: (env.AUTO_MIGRATE ?? 'true') === 'true',
+  jwtSecret: env.JWT_SECRET ?? DEV_JWT_SECRET,
+  jwtTtl: env.JWT_TTL ?? '12h',
+  corsOrigin: env.CORS_ORIGIN ?? 'http://localhost:3000',
+  /** Enables the admin-console attendance terminal / phone simulator endpoints. Disable in real pilots. */
+  simulatorEnabled: (env.SIMULATOR_ENABLED ?? 'true') === 'true',
+  worker: {
+    enabled: (env.WORKER_ENABLED ?? 'true') === 'true',
+    pollMs: Number(env.WORKER_POLL_MS ?? 500),
+    /** Periodic sweep: fail-safe checks, stale job recovery, and device re-sync. */
+    sweepMs: Number(env.SWEEP_INTERVAL_MS ?? 30_000),
+  },
+  emmMock: {
+    latencyMs: Number(env.EMM_MOCK_LATENCY_MS ?? 250),
+    /** 0..1 probability that a mock policy push fails (to exercise retries). */
+    failureRate: Number(env.EMM_MOCK_FAILURE_RATE ?? 0),
+  },
+  enrollmentTokenTtlHours: Number(env.ENROLLMENT_TOKEN_TTL_HOURS ?? 24),
+  /** A device that has not checked in for this long is reported as stale. */
+  deviceStaleMinutes: Number(env.DEVICE_STALE_MINUTES ?? 15),
+};
+
+export function assertProductionSafe(): void {
+  if (config.nodeEnv === 'production') {
+    if (config.jwtSecret === DEV_JWT_SECRET) {
+      throw new Error('JWT_SECRET must be set in production.');
+    }
+    if (config.simulatorEnabled) {
+      throw new Error('SIMULATOR_ENABLED must be false in production.');
+    }
+  }
+}

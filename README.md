@@ -2,102 +2,95 @@
 
 **Attendance-linked focus controls for industrial workplaces.**
 
-ShiftFocus is a concept for helping workplace teams reduce distractions from selected social and short-video apps during working hours. A verified attendance event starts a configured focus policy; clock-out ends it. The initial direction is an Android-first, small workplace pilot.
+ShiftFocus helps workplace teams reduce distractions from selected social and short-video apps during working hours. A verified attendance event starts a configured focus policy; a break or clock-out ends it. Workers always retain essential communications (Phone, SMS, WhatsApp) and an immediate, no-approval-required emergency override.
 
-> **Status:** Early-stage concept. No production app, attendance connector, or device-management implementation is included yet.
+> **Status:** Runnable **Pilot MVP** implemented in this repository (`apps/api` NestJS + PostgreSQL backend, `apps/admin` Next.js admin console & interactive simulator, `docs/openapi.yaml` contract, and automated unit + E2E test suite). Real EMM device enforcement and vendor-specific hardware connectors are cleanly isolated behind adapter boundaries (`EmmAdapter` and `/v1/connector/*`).
 
-## The problem
+---
 
-In some industrial workplaces, employees may spend work time on social or short-video apps. This can interrupt tasks and contribute to delays. ShiftFocus proposes testing whether limiting access to selected apps during shifts improves agreed work outcomes.
+## Quick Start (Pilot MVP)
 
-The product should validate this problem with workers and workplace data. Phone use may be one of several causes of delays, so the pilot should measure work outcomes rather than assume app restrictions will improve productivity.
+### Prerequisites
+- Node.js `>= 20`
+- PostgreSQL `>= 14` running locally (`postgres://postgres@localhost:5432/shiftfocus` by default, or set `DATABASE_URL`)
 
-## Proposed workflow
-
-1. A company registers and configures a workplace policy.
-2. An employee registers with a phone number and requests to join the company.
-3. An authorized company administrator verifies and approves the employee.
-4. The employee's device is enrolled using a supported device-management approach.
-5. The attendance system reports a clock-in event. A connector sends the event to ShiftFocus.
-6. The focus policy restricts only the apps selected by the company for that shift.
-7. Phone calls, SMS, and WhatsApp remain available under the initial policy proposal.
-8. A break or clock-out event changes or ends the policy according to the configured schedule.
-9. The employee can immediately use an emergency override. The event is recorded and the administrator is notified for follow-up; emergency access does not wait for administrator approval.
-
-## Attendance integration
-
-There is no single integration that works with every biometric or card attendance system. Integration depends on the terminal and the attendance software used by each workplace.
-
-Preferred integration order:
-
-1. Official attendance-software API or webhook.
-2. Official terminal or platform API/SDK.
-3. A supported integration connector or middleware.
-4. Scheduled CSV export for an initial, non-real-time pilot.
-
-For locally hosted attendance software, the proposed architecture is a small connector on the client's server that reads supported attendance events and sends normalized events to the ShiftFocus service over a secure outbound connection. Employee phones should not connect directly to the attendance server.
-
-Example normalized event:
-
-```json
-{
-  "employee_id": "184",
-  "event_type": "clock_in",
-  "timestamp": "2026-01-15T08:02:00+05:30",
-  "source": "client_attendance_system"
-}
+### 1. Install, Migrate & Seed Demo Data
+```bash
+npm install
+npm run db:migrate
+npm run db:seed
 ```
 
-The connector must account for duplicate, delayed, missing, or corrected events. A client integration should begin only after confirming the attendance vendor, software version, supported interface, employee identifier mapping, and client authorization.
+This creates the demo workplace **`Demo Plant — Pune Unit 2`** (join code `DEMO-PLANT`), default restricted & always-allowed app lists, sample employees (`101`–`105`), enrolled mock devices, and three role-scoped administrator accounts:
 
-## Device-management considerations
+| Role | Email | Password | Capabilities |
+|---|---|---|---|
+| **Owner** | `owner@demo.local` | `ShiftFocus#2026` | Full access, policy edits, connector key management |
+| **HR** | `hr@demo.local` | `ShiftFocus#2026` | Employee approvals, device enrollment, manual punch corrections, override follow-ups |
+| **Viewer** | `viewer@demo.local` | `ShiftFocus#2026` | Read-only operational dashboard and audit views |
 
-Employee account approval and phone app enforcement are separate capabilities. Verifying that an employee belongs to a company does not by itself prevent app removal or guarantee that other apps can be restricted.
+### 2. Start the API & Admin Console
+```bash
+npm run dev
+```
+- **Admin Console & Interactive Pilot Simulator:** `http://localhost:3000`
+- **Backend API:** `http://localhost:4000` (`GET /v1/health`)
 
-The first technical feasibility study should compare company-owned or formally managed Android devices with employee-owned personal phones. Strong enforcement and resistance to removal generally depend on supported device-management enrollment. iOS should be assessed separately because its control and enrollment options differ.
+### 3. Simulate Attendance Punches from the CLI (Optional)
+You can trigger punches either from the right-hand **Interactive Pilot Simulator** inside the web console or via the CLI connector simulator:
+```bash
+npm run simulate -- heartbeat
+npm run simulate -- punch 101 clock_in
+npm run simulate -- punch 101 break_start
+npm run simulate -- punch 101 break_end
+npm run simulate -- punch 101 clock_out
+npm run simulate -- csv
+```
 
-## Pilot proposal
+### 4. Run Automated Tests
+```bash
+npm test
+```
+Runs both pure policy-engine unit tests ([policy-engine.test.ts](file:///home/antigravity/jagtapyogesh41/workfocus/apps/api/src/domain/policy-engine.test.ts)) and full HTTP + PostgreSQL end-to-end tests ([e2e.test.ts](file:///home/antigravity/jagtapyogesh41/workfocus/apps/api/src/e2e.test.ts)).
 
-1. Select one workplace and a willing team.
-2. Record the attendance terminal make/model and attendance-software name/version.
-3. Confirm that the attendance system can provide reliable clock-in, break, and clock-out events.
-4. Agree with workers and management on the restricted app list, available essentials, breaks, emergency override, and correction process.
-5. Run a small Android pilot on appropriately enrolled devices.
-6. Review policy timing, integration errors, emergency overrides, worker feedback, and a selected work outcome such as task completion or delays.
-7. Decide whether to revise, expand, or stop based on the findings.
+---
 
-Internet connectivity is not evidence that an employee is using a particular app. Connectivity status should not be used to infer app use or trigger disciplinary action.
+## Repository Structure
 
-## Initial scope ideas
+```text
+├── apps/
+│   ├── api/                         # NestJS + PostgreSQL API, policy engine & worker
+│   │   ├── src/
+│   │   │   ├── domain/              # Pure shift & policy decision engine + unit tests
+│   │   │   ├── db/                  # SQL migrations, transactional pool wrapper, demo seed
+│   │   │   ├── common/              # JWT/Connector/Device auth guards, token hashing, Zod validation
+│   │   │   ├── services/            # Ingestion, reconciliation, job queue, worker, mock EMM, audit
+│   │   │   ├── controllers/         # Public, Connector, Device, and Admin HTTP controllers
+│   │   │   └── e2e.test.ts          # End-to-end test suite against PostgreSQL
+│   │   └── scripts/
+│   │       └── simulate-attendance.mjs
+│   └── admin/                       # Next.js (TypeScript + React) Admin Console & Simulator
+│       └── app/
+│           ├── page.tsx             # Dashboard, approvals, policy editor, audit, terminal + phone simulator
+│           └── globals.css
+├── docs/
+│   └── openapi.yaml                 # OpenAPI 3.1 contract for connector and device APIs
+├── PRODUCT_PLAN.md                  # Full product plan and technical direction
+└── .env.example                     # Configuration reference
+```
 
-- Company and employee registration
-- Administrator approval of employee requests
-- Configurable, explicit list of apps to restrict
-- Attendance event ingestion through a vendor-supported interface
-- Shift and break policy handling
-- Immediate emergency override with an audit event and admin notification
-- Basic operational status and error handling
+---
 
-These are product goals, not implemented features.
+## Key Architecture & Safety Highlights
 
-## Open questions
-
-- Which attendance system and software will be supported first?
-- Will the pilot use company-owned or personal phones?
-- What Android Enterprise enrollment method is appropriate for the pilot?
-- Which specific apps are included in the initial restriction policy?
-- How should unscheduled breaks, missed punches, and attendance corrections affect restrictions?
-- What work outcome will the pilot measure, and how will workers participate in evaluating it?
-
-## Privacy and deployment principles
-
-- Collect only the employee and attendance data needed to operate the policy.
-- Do not treat network connectivity as proof of app use.
-- Make the restricted-app policy and emergency override clear to employees.
-- Keep an auditable record of policy changes and overrides.
-- Set data retention, access controls, and worker notice before a pilot.
-- Confirm applicable employment, privacy, and device-management requirements with the client before deployment.
-
-## Repository status
-
-This repository currently documents the idea and proposed pilot direction. Architecture, platform feasibility, integrations, and worker policy still need validation before implementation.
+1. **Pure, Deterministic Policy Engine ([`policy-engine.ts`](file:///home/antigravity/jagtapyogesh41/workfocus/apps/api/src/domain/policy-engine.ts)):**
+   - Evaluates attendance events ordered by `occurred_at` (handling late or out-of-order delivery).
+   - Flags anomalies (`duplicate_clock_in`, `break_without_shift`, `clock_out_without_shift`, `future_event_ignored`) without corrupting shift state.
+   - Enforces a **bounded fail-safe** (`max_shift_hours`, default 12h): never leaves restrictions active indefinitely if a clock-out event is missed.
+2. **Immediate Emergency Override ([`device.service.ts`](file:///home/antigravity/jagtapyogesh41/workfocus/apps/api/src/services/device.service.ts)):**
+   - `POST /v1/device/override` immediately transitions the device to `unrestricted`, logs an audit entry, and creates an administrator alert for follow-up — never blocking the worker on admin approval.
+3. **Idempotent Ingestion & HR Corrections ([`ingestion.service.ts`](file:///home/antigravity/jagtapyogesh41/workfocus/apps/api/src/services/ingestion.service.ts)):**
+   - Deduplicates by `(company_id, source_system, vendor_event_id)`.
+   - Supports `original`, `corrected`, and `voided` events, scheduled CSV fallback (`POST /v1/connector/events.csv`), and backfills events that arrived before an employee's attendance ID was mapped.
+4. **Privacy by Design:**
+   - Stores zero biometric templates, personal messages, or browsing history, and never uses network connectivity as a proxy for app usage.
