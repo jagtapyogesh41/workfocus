@@ -361,7 +361,14 @@ export default function ShiftFocusConsole() {
             </button>
           </div>
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border-hairline)' }}>
-            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 8 }}>QUICK DEMO ROLE SWITCH</div>
+            <a
+              href="/worker"
+              className="btn btn-primary"
+              style={{ width: '100%', textDecoration: 'none', marginBottom: 12 }}
+            >
+              📱 Open Employee Mobile App (/worker)
+            </a>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 8 }}>OR SIGN IN AS DEMO ADMIN</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button id="demo-owner-btn" className="btn btn-sm" onClick={() => handleLogin('owner@demo.local', 'ShiftFocus#2026')}>
                 Plant Owner
@@ -394,6 +401,15 @@ export default function ShiftFocusConsole() {
         </div>
 
         <div className="topbar-right">
+          <a
+            href="/worker"
+            id="open-worker-mobile-app-link"
+            className="btn btn-sm btn-primary"
+            style={{ textDecoration: 'none' }}
+          >
+            📱 Employee Mobile App
+          </a>
+
           <span className="pill pill-ok" title="PostgreSQL + Background Worker + Mock EMM online">
             <span className="pill-dot" /> System Online
           </span>
