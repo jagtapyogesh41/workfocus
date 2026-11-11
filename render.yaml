@@ -1,0 +1,38 @@
+# Render.com Blueprint — 1-Click Deployment for ShiftFocus Pilot MVP
+# Docs: https://render.com/docs/blueprint-spec
+
+databases:
+  - name: shiftfocus-db
+    databaseName: shiftfocus
+    user: shiftfocus
+    plan: free
+
+services:
+  - type: web
+    name: shiftfocus
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    healthCheckPath: /v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: "4000"
+      - key: API_INTERNAL_URL
+        value: http://127.0.0.1:4000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shiftfocus-db
+          property: connectionString
+      - key: AUTO_MIGRATE
+        value: "true"
+      - key: PILOT_DEMO_MODE
+        value: "true"
+      - key: AUTO_SEED
+        value: "true"
+      - key: SIMULATOR_ENABLED
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
