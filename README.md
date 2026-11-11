@@ -4,33 +4,58 @@
 
 ShiftFocus is an attendance-linked focus management system designed for industrial workplaces where personal social or short-video app use during active shifts may interrupt tasks and contribute to operational delays. When a workplace's attendance system confirms a worker's `clock_in`, ShiftFocus applies a clearly disclosed focus policy to their enrolled Android handset; a verified `break_start` temporarily lifts (or modifies) restrictions, and `clock_out` restores normal access.
 
-> **Status:** Runnable **Pilot MVP** implemented (`apps/api` NestJS + PostgreSQL backend, `apps/admin` Next.js operational console + interactive Pilot Lab, `docs/openapi.yaml` contract, CLI attendance simulator, and 17 unit + E2E tests). Real EMM device enforcement and vendor-specific hardware connectors are isolated behind clean adapter boundaries (`EmmAdapter` and `/v1/connector/*`).
+> **Live Hosted Pilot Deployment:**
+> - **Admin Console & Interactive Pilot Lab:** [https://shiftfocus-6gaz.onrender.com/](https://shiftfocus-6gaz.onrender.com/)
+> - **Installable Employee Mobile App (PWA):** [https://shiftfocus-6gaz.onrender.com/worker](https://shiftfocus-6gaz.onrender.com/worker)
+> - **API Health Check:** [https://shiftfocus-6gaz.onrender.com/v1/health](https://shiftfocus-6gaz.onrender.com/v1/health)
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/jagtapyogesh41/workfocus)
 
-### 1-Click Cloud Hosting (Render.com)
-1. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/jagtapyogesh41/workfocus)** (or in Render Dashboard choose **New + → Blueprint** and select `jagtapyogesh41/workfocus`).
-2. Render reads [`render.yaml`](file:///home/antigravity/jagtapyogesh41/workfocus/render.yaml) and automatically provisions:
-   - **`shiftfocus-db`** — Free managed PostgreSQL database
-   - **`shiftfocus`** — Unified Web Service serving both the **Next.js Admin Console & Pilot Lab** (`/`) and the **ShiftFocus REST API** (`/v1/*`) on a single `https://<your-service>.onrender.com` URL.
-3. On first boot, the service automatically applies SQL migrations (`AUTO_MIGRATE=true`) and seeds the `DEMO-PLANT` workplace (`AUTO_SEED=true`), so you can sign in immediately with `owner@demo.local` / `ShiftFocus#2026`.
+---
+
+## Application Screenshots & Visual Tour
+
+### 1. Shift Floor Overview & Interactive Pilot Lab (`/`)
+The **Admin Console** provides real-time shift telemetry (active shift count, EMM device fleet sync ratio, median/p95 event-to-policy latency, and active emergency overrides), a filterable **Workforce Shift & Device Matrix**, and the right-hand **Interactive Pilot Lab** (Gate Attendance Terminal simulator + Android Enterprise device preview).
+
+![ShiftFocus Admin Console & Interactive Pilot Lab](docs/images/admin-console.jpg)
+
+---
+
+### 2. Installable Employee Mobile App (`/worker`) & Workplace Policy View
+On the left, the **Employee Mobile App (`/worker`)** runs as an installable Progressive Web App (PWA) on Android and iOS: workers can pair in one tap, inspect which apps are allowed (**Phone**, **Messages (SMS)**, **WhatsApp**) vs. paused during an active shift (**Instagram**, **YouTube**, **Facebook**, **Snapchat**, **Moj**, **Josh**), and trigger an immediate **⚡ Emergency Override** without waiting for administrator approval. On the right, the **Workplace Focus Policy & Override Governance** view lets owners configure the restricted package list, break behavior, and bounded fail-safe shift duration (`12h` max).
+
+| Installable Employee Mobile App (`/worker`) | Workplace Focus Policy & Emergency Override Follow-Up |
+| :---: | :---: |
+| ![ShiftFocus Worker Mobile App](docs/images/worker-mobile-app.jpg) | ![ShiftFocus Focus Policy & Overrides](docs/images/policy-and-override.jpg) |
 
 ---
 
 ## Table of Contents
 
-1. [Quick Start (Run Locally)](#1-quick-start-run-the-app)
-2. [Demo Credentials & Seeded Workforce](#2-demo-credentials--seeded-workforce)
-3. [Using the Interactive Pilot Lab](#3-using-the-interactive-pilot-lab)
-4. [CLI Attendance Connector Simulator](#4-cli-attendance-connector-simulator)
-5. [Architecture & Repository Layout](#5-architecture--repository-layout)
-6. [API Reference](#6-api-reference)
-7. [Product Direction, Safety & Privacy Guardrails](#7-product-direction-safety--privacy-guardrails)
-8. [Open Pilot Questions](#8-open-pilot-questions)
+1. [1-Click Cloud Hosting (Render.com)](#1-click-cloud-hosting-rendercom)
+2. [Quick Start (Run Locally)](#1-quick-start-run-locally)
+3. [Demo Credentials & Seeded Workforce](#2-demo-credentials--seeded-workforce)
+4. [Using the Employee Mobile App & Pilot Lab](#3-using-the-employee-mobile-app--pilot-lab)
+5. [CLI Attendance Connector Simulator](#4-cli-attendance-connector-simulator)
+6. [Architecture & Repository Layout](#5-architecture--repository-layout)
+7. [API Reference](#6-api-reference)
+8. [Product Direction, Safety & Privacy Guardrails](#7-product-direction-safety--privacy-guardrails)
+9. [Open Pilot Questions](#8-open-pilot-questions)
 
 ---
 
-## 1. Quick Start (Run the App)
+## 1-Click Cloud Hosting (Render.com)
+
+1. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/jagtapyogesh41/workfocus)** (or in Render Dashboard choose **New + → Blueprint** and select `jagtapyogesh41/workfocus`).
+2. Render reads [`render.yaml`](file:///home/antigravity/jagtapyogesh41/workfocus/render.yaml) and automatically provisions:
+   - **`shiftfocus-db`** — Free managed PostgreSQL database
+   - **`shiftfocus`** — Unified Web Service serving the **Next.js Admin Console** (`/`), the **Installable Employee Mobile App** (`/worker`), and the **ShiftFocus REST API** (`/v1/*`) under a single `https://<your-service>.onrender.com` URL.
+3. On first boot, the service automatically applies SQL migrations (`AUTO_MIGRATE=true`) and seeds the `DEMO-PLANT` workplace (`AUTO_SEED=true`), so you can sign in immediately with `owner@demo.local` / `ShiftFocus#2026`.
+
+---
+
+## 1. Quick Start (Run Locally)
 
 ### Prerequisites
 - **Node.js** `>= 20`
@@ -45,11 +70,12 @@ npm install
 npm run db:migrate
 npm run db:seed
 
-# 3. Start both the NestJS API (port 4000) and Next.js Admin Console (port 3000)
+# 3. Start both the NestJS API (port 4000) and Next.js Admin Console + Mobile App (port 3000)
 npm run dev
 ```
 
 - **Admin Console & Interactive Pilot Lab:** `http://localhost:3000`
+- **Employee Mobile App (PWA):** `http://localhost:3000/worker`
 - **Backend API Health Check:** `http://localhost:4000/v1/health`
 
 ### Run Automated Tests
@@ -83,20 +109,19 @@ Running `npm run db:seed` provisions the demo workplace **`Demo Plant — Pune U
 
 ---
 
-## 3. Using the Interactive Pilot Lab
+## 3. Using the Employee Mobile App & Pilot Lab
 
-The right-hand **Interactive Pilot Lab** in the Admin Console lets you test the entire ShiftFocus lifecycle without physical attendance hardware:
+### On Your Smartphone (`/worker`)
+1. Open **[https://shiftfocus-6gaz.onrender.com/worker](https://shiftfocus-6gaz.onrender.com/worker)** on your mobile phone.
+2. Tap **📲 Install App** (or Android Chrome `⋮` → **Install app** / iPhone Safari **Share → Add to Home Screen**) to install ShiftFocus as a standalone home-screen app.
+3. Tap **Asha Patil (#101)** (or any listed worker) for **1-Tap Pilot Worker Pairing**, or paste an `sfe_...` enrollment token from HR.
+4. Tap any app tile on your phone screen to test allowed vs. restricted apps during shifts, use **⚡ Emergency Override** to unlock all apps immediately, or simulate gate punches directly from the bottom of the mobile app.
 
+### On Your Laptop (`/` — Admin Console & Pilot Lab)
 1. **▶ Run Guided Shift Demo (1-Click):**
-   Click **▶ Run Guided Shift Demo** (in the page header or Pilot Lab) to automatically step through enrolling the worker's Android handset, clocking in at the gate terminal, starting a break, and returning to active shift focus mode.
+   Click **▶ Run Guided Shift Demo** in the top header to automatically step through enrolling the worker's Android handset, clocking in at the gate terminal, starting a break, and returning to active shift focus mode.
 2. **Gate Attendance Terminal (`TERM-GATE-1`):**
-   Select any approved worker (`101`–`104`) and trigger `Clock In`, `Break Start`, `Break End`, or `Clock Out` punches — or use the inline quick-action buttons directly in the **Workforce Shift & Device Matrix** table.
-3. **Simulated Android Enterprise Handset:**
-   - Click **Enroll & Connect Handset** to issue a one-time enrollment token (`sfe_...`) and exchange it for an active device credential (`sfd_...`).
-   - **Interactive App Launcher Grid:** Tap any app icon on the simulated phone screen. Essential apps (**Phone**, **Messages**, **WhatsApp**) always open; restricted apps (**Instagram**, **YouTube**, **Moj**, etc.) display a **ShiftFocus Blocked** intercept while Focus Shield is active.
-   - **⚡ Emergency Override:** Select a reason (`Family emergency`, `Medical need`, `Workplace safety`, etc.) and click **⚡ Emergency Override**. Restrictions lift **immediately** without waiting for administrator approval, an audit entry is recorded, and an alert is raised for HR follow-up in the **Emergency Overrides** tab.
-4. **Worker Onboarding Request:**
-   Submit a new worker join request (`POST /v1/public/register`), then switch to **Workers & Devices** to assign their attendance terminal ID and approve them.
+   Select any approved worker (`101`–`104`) and trigger `Clock In`, `Break Start`, `Break End`, or `Clock Out` punches — and watch any paired phone on `/worker` update live within 2 seconds.
 
 ---
 
@@ -108,11 +133,9 @@ To simulate an outbound client-side connector service sending events over HTTPS:
 # Send a connector liveness heartbeat
 npm run simulate -- heartbeat
 
-# Send attendance punches for employee #101
+# Send attendance punches for employee #101 (local or against Render)
 npm run simulate -- punch 101 clock_in
-npm run simulate -- punch 101 break_start
-npm run simulate -- punch 101 break_end
-npm run simulate -- punch 101 clock_out
+API_URL=https://shiftfocus-6gaz.onrender.com npm run simulate -- punch 101 clock_in
 
 # Test the scheduled CSV export fallback (Content-Type: text/csv)
 npm run simulate -- csv
@@ -132,7 +155,7 @@ Client-side connector (outbound TLS with sfc_<prefix>_<secret> key)
 ShiftFocus API & Idempotent Ingestion (apps/api)
         ↓                         ↓
 Next.js Admin Console     PostgreSQL Job Queue (SKIP LOCKED)
-  (apps/admin)                    ↓
+  & Mobile PWA (/worker)          ↓
                           EMM Adapter (MockEmmAdapter / Android Enterprise)
                                   ↓
                           Enrolled Android Device
@@ -150,12 +173,21 @@ Next.js Admin Console     PostgreSQL Job Queue (SKIP LOCKED)
 │   │   │   └── e2e.test.ts          # End-to-end test suite against PostgreSQL
 │   │   └── scripts/
 │   │       └── simulate-attendance.mjs
-│   └── admin/                       # Next.js (TypeScript + React) Admin Console & Pilot Lab
-│       └── app/
-│           ├── page.tsx             # Telemetry, roster, policy editor, audit, terminal + phone lab
-│           └── globals.css          # Industrial design system tokens and components
+│   └── admin/                       # Next.js Admin Console (/) & Installable Worker Mobile App (/worker)
+│       ├── app/
+│       │   ├── page.tsx             # Telemetry, roster, policy editor, audit, terminal + phone lab
+│       │   ├── worker/page.tsx      # Dedicated Employee Mobile PWA (/worker)
+│       │   ├── v1/[...path]/route.ts# Runtime API proxy route
+│       │   └── globals.css          # Industrial design system tokens and components
+│       └── public/
+│           ├── manifest.webmanifest # PWA install manifest (start_url: /worker)
+│           ├── sw.js                # PWA service worker
+│           └── icon-192.png / icon-512.png
 ├── docs/
-│   └── openapi.yaml                 # OpenAPI 3.1 contract for connector and device APIs
+│   ├── openapi.yaml                 # OpenAPI 3.1 contract for connector and device APIs
+│   └── images/                      # Application UI screenshots
+├── render.yaml                      # Render.com 1-Click Blueprint specification
+├── Dockerfile                       # Multi-stage production container build
 ├── PRODUCT_PLAN.md                  # Full product plan and technical direction
 └── .env.example                     # Environment variable reference
 ```
@@ -176,6 +208,9 @@ Full contract: [`docs/openapi.yaml`](file:///home/antigravity/jagtapyogesh41/wor
 | `POST /v1/connector/events` | `ConnectorKey` | Ingest batch of normalized attendance events (idempotent) |
 | `POST /v1/connector/events.csv` | `ConnectorKey` | Scheduled CSV export fallback ingestion |
 | `POST /v1/device/enroll` | One-time `sfe_` token | Enroll handset and receive `sfd_` device token |
+| `GET /v1/device/demo-workers` | Pilot demo mode | List approved workers for 1-tap pairing on `/worker` |
+| `POST /v1/device/demo-pair` | Pilot demo mode | 1-tap enroll & pair a worker's mobile handset on `/worker` |
+| `POST /v1/device/demo-punch` | `DeviceToken` | Simulate a gate punch (`clock_in`, `break_start`, etc.) from `/worker` |
 | `GET /v1/device/status` | `DeviceToken` | Poll current shift state, applied mode, and app lists |
 | `POST /v1/device/override` | `DeviceToken` | Immediately suspend restrictions (logs audit + notifies admin) |
 | `POST /v1/device/override/end` | `DeviceToken` | Voluntarily end an active emergency override |
