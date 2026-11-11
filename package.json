@@ -10,12 +10,13 @@
   "scripts": {
     "dev": "concurrently -n api,admin -c blue,magenta \"npm run dev -w apps/api\" \"npm run dev -w apps/admin\"",
     "build": "npm run build -w apps/api && npm run build -w apps/admin",
+    "start": "concurrently -k -n api,admin \"API_PORT=4000 npm run start -w apps/api\" \"npm run start -w apps/admin\"",
     "test": "npm test -w apps/api",
     "db:migrate": "npm run db:migrate -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
     "simulate": "npm run simulate -w apps/api --"
   },
-  "devDependencies": {
+  "dependencies": {
     "concurrently": "9.2.1"
   },
   "engines": {

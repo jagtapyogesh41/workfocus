@@ -6,11 +6,20 @@ ShiftFocus is an attendance-linked focus management system designed for industri
 
 > **Status:** Runnable **Pilot MVP** implemented (`apps/api` NestJS + PostgreSQL backend, `apps/admin` Next.js operational console + interactive Pilot Lab, `docs/openapi.yaml` contract, CLI attendance simulator, and 17 unit + E2E tests). Real EMM device enforcement and vendor-specific hardware connectors are isolated behind clean adapter boundaries (`EmmAdapter` and `/v1/connector/*`).
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/jagtapyogesh41/workfocus)
+
+### 1-Click Cloud Hosting (Render.com)
+1. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/jagtapyogesh41/workfocus)** (or in Render Dashboard choose **New + → Blueprint** and select `jagtapyogesh41/workfocus`).
+2. Render reads [`render.yaml`](file:///home/antigravity/jagtapyogesh41/workfocus/render.yaml) and automatically provisions:
+   - **`shiftfocus-db`** — Free managed PostgreSQL database
+   - **`shiftfocus`** — Unified Web Service serving both the **Next.js Admin Console & Pilot Lab** (`/`) and the **ShiftFocus REST API** (`/v1/*`) on a single `https://<your-service>.onrender.com` URL.
+3. On first boot, the service automatically applies SQL migrations (`AUTO_MIGRATE=true`) and seeds the `DEMO-PLANT` workplace (`AUTO_SEED=true`), so you can sign in immediately with `owner@demo.local` / `ShiftFocus#2026`.
+
 ---
 
 ## Table of Contents
 
-1. [Quick Start (Run the App)](#1-quick-start-run-the-app)
+1. [Quick Start (Run Locally)](#1-quick-start-run-the-app)
 2. [Demo Credentials & Seeded Workforce](#2-demo-credentials--seeded-workforce)
 3. [Using the Interactive Pilot Lab](#3-using-the-interactive-pilot-lab)
 4. [CLI Attendance Connector Simulator](#4-cli-attendance-connector-simulator)

@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient, QueryResultRow } from 'pg';
-import { config } from '../config';
+import { config, pgPoolConfig } from '../config';
 
 /** Minimal query surface shared by the pool and transaction clients. */
 export interface Queryable {
@@ -17,7 +17,7 @@ export function wrap(runner: Pool | PoolClient): Queryable {
 
 @Injectable()
 export class Db implements Queryable, OnModuleDestroy {
-  readonly pool = new Pool({ connectionString: config.databaseUrl, max: 10 });
+  readonly pool = new Pool({ ...pgPoolConfig(config.databaseUrl), max: 10 });
   private readonly base = wrap(this.pool);
 
   query<T extends QueryResultRow = any>(sql: string, params?: unknown[]): Promise<T[]> {

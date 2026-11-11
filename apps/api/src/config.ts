@@ -8,13 +8,17 @@ const DEV_JWT_SECRET = 'dev-only-insecure-jwt-secret-change-me';
 
 export const config = {
   nodeEnv: env.NODE_ENV ?? 'development',
-  port: Number(env.PORT ?? 4000),
+  port: Number(env.API_PORT ?? env.PORT ?? 4000),
   databaseUrl: env.DATABASE_URL ?? 'postgres://postgres@localhost:5432/shiftfocus',
+  databaseSsl: (env.DATABASE_SSL ?? 'false') === 'true',
   autoMigrate: (env.AUTO_MIGRATE ?? 'true') === 'true',
+  /** Allows the interactive simulator and auto-seeding when hosted as a pilot/evaluation environment. */
+  pilotDemoMode: (env.PILOT_DEMO_MODE ?? 'false') === 'true',
+  autoSeed: (env.AUTO_SEED ?? env.PILOT_DEMO_MODE ?? 'false') === 'true',
   jwtSecret: env.JWT_SECRET ?? DEV_JWT_SECRET,
   jwtTtl: env.JWT_TTL ?? '12h',
-  corsOrigin: env.CORS_ORIGIN ?? 'http://localhost:3000',
-  /** Enables the admin-console attendance terminal / phone simulator endpoints. Disable in real pilots. */
+  corsOrigin: env.CORS_ORIGIN ?? '*',
+  /** Enables the admin-console attendance terminal / phone simulator endpoints. */
   simulatorEnabled: (env.SIMULATOR_ENABLED ?? 'true') === 'true',
   worker: {
     enabled: (env.WORKER_ENABLED ?? 'true') === 'true',
@@ -29,16 +33,23 @@ export const config = {
   },
   enrollmentTokenTtlHours: Number(env.ENROLLMENT_TOKEN_TTL_HOURS ?? 24),
   /** A device that has not checked in for this long is reported as stale. */
-  deviceStaleMinutes: Number(env.DEVICE_STALE_MINUTES ?? 15),
+  deviceStaleMinutes: Number(env.DEVICE_Stale_MINUTES ?? env.DEVICE_STALE_MINUTES ?? 15),
 };
+
+export function pgPoolConfig(connectionString = config.databaseUrl) {
+  return {
+    connectionString,
+    ...(config.databaseSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+  };
+}
 
 export function assertProductionSafe(): void {
   if (config.nodeEnv === 'production') {
     if (config.jwtSecret === DEV_JWT_SECRET) {
       throw new Error('JWT_SECRET must be set in production.');
     }
-    if (config.simulatorEnabled) {
-      throw new Error('SIMULATOR_ENABLED must be false in production.');
+    if (config.simulatorEnabled && !config.pilotDemoMode) {
+      throw new Error('SIMULATOR_ENABLED must be false in production unless PILOT_DEMO_MODE=true.');
     }
   }
 }
