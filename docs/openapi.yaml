@@ -1,0 +1,148 @@
+openapi: 3.1.0
+info:
+  title: ShiftFocus API
+  version: 0.1.0
+  description: |
+    Attendance-linked focus policy service for industrial workplace pilots.
+    Separates connector ingestion, employee device status/override, and tenant-scoped administration.
+servers:
+  - url: http://localhost:4000
+components:
+  securitySchemes:
+    AdminJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ConnectorKey:
+      type: http
+      scheme: bearer
+      description: Per-connector opaque key (`sfc_<prefix>_<secret>`)
+    DeviceToken:
+      type: http
+      scheme: bearer
+      description: Enrolled device token (`sfd_<prefix>_<secret>`)
+  schemas:
+    NormalizedEvent:
+      type: object
+      required: [event_id, employee_id, event_type, occurred_at]
+      properties:
+        event_id:
+          type: string
+          example: vendor-event-8391
+        employee_id:
+          type: string
+          example: "101"
+        event_type:
+          type: string
+          enum: [clock_in, break_start, break_end, clock_out]
+        occurred_at:
+          type: string
+          format: date-time
+          example: "2026-01-15T08:02:00+05:30"
+        correction_status:
+          type: string
+          enum: [original, corrected, voided]
+          default: original
+        terminal_id:
+          type: string
+          example: TERM-GATE-1
+paths:
+  /v1/health:
+    get:
+      summary: Service and database health check
+      responses:
+        "200":
+          description: Healthy
+  /v1/connector/heartbeat:
+    post:
+      summary: Outbound connector liveness heartbeat
+      security: [{ ConnectorKey: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version: { type: string }
+      responses:
+        "200":
+          description: Heartbeat recorded
+  /v1/connector/events:
+    post:
+      summary: Ingest normalized attendance events (idempotent by vendor event_id)
+      security: [{ ConnectorKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  items: { $ref: "#/components/schemas/NormalizedEvent" }
+      responses:
+        "200":
+          description: Per-event ingestion result counts
+  /v1/connector/events.csv:
+    post:
+      summary: Scheduled CSV export fallback ingestion
+      security: [{ ConnectorKey: [] }]
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Per-row ingestion result counts
+  /v1/device/enroll:
+    post:
+      summary: Exchange a one-time enrollment token for a device token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enrollmentToken]
+              properties:
+                enrollmentToken: { type: string }
+                model: { type: string }
+      responses:
+        "200":
+          description: Enrolled device credentials
+  /v1/device/status:
+    get:
+      summary: Current shift state, applied/desired focus policy, and active override
+      security: [{ DeviceToken: [] }]
+      responses:
+        "200":
+          description: Device policy status
+  /v1/device/override:
+    post:
+      summary: Immediately suspend restrictions (no admin approval required)
+      security: [{ DeviceToken: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reasonCategory:
+                  type: string
+                  enum: [medical, family, safety, work_related, other]
+                note:
+                  type: string
+      responses:
+        "200":
+          description: Override activated and restrictions lifted
+  /v1/device/override/end:
+    post:
+      summary: Voluntarily end an active emergency override
+      security: [{ DeviceToken: [] }]
+      responses:
+        "200":
+          description: Updated device status
