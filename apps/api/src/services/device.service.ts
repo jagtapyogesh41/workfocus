@@ -107,7 +107,7 @@ export class DeviceService {
   /** Status as seen by the phone. Doubles as a check-in: lagging policy is re-queued (reconcile on reconnect). */
   async status(deviceId: string) {
     const d = await this.db.one(
-      `select d.*, e.full_name, e.shift_state, e.shift_started_at, c.name as company_name,
+      `select d.*, e.full_name, e.phone, e.external_employee_id, e.shift_state, e.shift_started_at, c.name as company_name,
               p.restricted_apps, p.always_allowed_apps, p.break_mode, p.max_shift_hours
        from devices d join employees e on e.id = d.employee_id
        join companies c on c.id = d.company_id join policies p on p.company_id = d.company_id

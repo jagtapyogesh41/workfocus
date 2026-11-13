@@ -46,8 +46,8 @@ class FocusMonitorService : Service() {
         startForeground(NOTIF_ID, buildNotification("ShiftFocus active — syncing shift policy"))
 
         scheduler = Executors.newScheduledThreadPool(2).apply {
-            scheduleWithFixedDelay({ syncPolicyFromServer() }, 0, 3, TimeUnit.SECONDS)
-            scheduleWithFixedDelay({ checkForegroundApp() }, 500, 700, TimeUnit.MILLISECONDS)
+            scheduleWithFixedDelay({ syncPolicyFromServer() }, 0, 2, TimeUnit.SECONDS)
+            scheduleWithFixedDelay({ checkForegroundApp() }, 400, 450, TimeUnit.MILLISECONDS)
         }
     }
 
@@ -85,7 +85,7 @@ class FocusMonitorService : Service() {
         val blockedLabel = ShiftFocusStore.blockedLabelFor(this, fgPkg) ?: return
 
         val now = System.currentTimeMillis()
-        if (now - lastBlockedLaunchMs < 1500) return
+        if (now - lastBlockedLaunchMs < 1100) return
         lastBlockedLaunchMs = now
 
         BlockedAppActivity.launch(this, blockedLabel, fgPkg)
@@ -94,17 +94,20 @@ class FocusMonitorService : Service() {
     private fun detectForegroundPackage(): String? {
         val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return null
         val end = System.currentTimeMillis()
-        val begin = end - 10_000
+        val begin = end - 60_000
         val events = usm.queryEvents(begin, end)
         val event = UsageEvents.Event()
         var lastPkg: String? = null
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+            if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED || event.eventType == 1) {
                 lastPkg = event.packageName
             }
         }
-        return lastPkg
+        if (!lastPkg.isNullOrBlank()) return lastPkg
+
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, end - 120_000, end)
+        return stats?.maxByOrNull { it.lastTimeUsed }?.packageName
     }
 
     private fun ensureChannel() {

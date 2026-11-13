@@ -45,8 +45,8 @@ const initials = (label: string) =>
 export default function WorkerMobileApp() {
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
   const [status, setStatus] = useState<any>(null);
-  const [demoWorkers, setDemoWorkers] = useState<any[]>([]);
-  const [pairMode, setPairMode] = useState<'quick' | 'token' | 'register'>('quick');
+  const [pairMode, setPairMode] = useState<'phone' | 'token' | 'register'>('phone');
+  const [loginPhone, setLoginPhone] = useState('');
   const [enrollmentToken, setEnrollmentToken] = useState('');
   const [regJoinCode, setRegJoinCode] = useState('DEMO-PLANT');
   const [regName, setRegName] = useState('');
@@ -89,9 +89,6 @@ export default function WorkerMobileApp() {
     } else if (saved) {
       setDeviceToken(saved);
     }
-    void apiFetch('/v1/device/demo-workers')
-      .then((res) => setDemoWorkers(res.workers ?? []))
-      .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -110,7 +107,7 @@ export default function WorkerMobileApp() {
   useEffect(() => {
     if (!deviceToken) return;
     void refreshStatus(deviceToken);
-    const id = setInterval(() => void refreshStatus(deviceToken), 2000);
+    const id = setInterval(() => void refreshStatus(deviceToken), 1500);
     return () => clearInterval(id);
   }, [deviceToken, refreshStatus]);
 
@@ -150,17 +147,22 @@ export default function WorkerMobileApp() {
     }
   };
 
-  const quickPairWorker = async (extId: string) => {
+  const loginWithPhone = async () => {
+    if (!loginPhone.trim()) return;
     setBusy(true);
     try {
-      const res = await apiFetch('/v1/device/demo-pair', {
+      const res = await apiFetch('/v1/device/login-phone', {
         method: 'POST',
-        body: { externalEmployeeId: extId, model: 'Employee Mobile PWA' },
+        body: { phone: loginPhone.trim(), model: 'Employee Mobile PWA' },
       });
       window.localStorage.setItem(STORAGE_KEY, res.deviceToken);
       setDeviceToken(res.deviceToken);
-      await refreshStatus(res.deviceToken);
-      notify('ok', `Paired phone as ${res.employee.fullName} (#${res.employee.externalEmployeeId})`);
+      if (res.status) {
+        setStatus(res.status);
+      } else {
+        await refreshStatus(res.deviceToken);
+      }
+      notify('ok', `Signed in as ${res.employee.fullName} (#${res.employee.externalEmployeeId})`);
     } catch (err: any) {
       notify('err', err.message);
     } finally {
@@ -197,7 +199,7 @@ export default function WorkerMobileApp() {
       });
       setStatus(st);
       setAppTapNotice(null);
-      notify('ok', `Attendance event sent: ${eventType}`);
+      notify('ok', `Shift status updated: ${eventType.replace('_', ' ')}`);
     } catch (err: any) {
       notify('err', err.message);
     } finally {
@@ -243,7 +245,7 @@ export default function WorkerMobileApp() {
 
   return (
     <div style={{ maxWidth: 460, margin: '0 auto', minHeight: '100vh', padding: '14px 14px 36px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Mobile App Top Bar */}
+      {/* Mobile App Top Bar (No Admin Link) */}
       <header className="panel panel-pad" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div className="brand-cluster">
           <span className="brand-mark">SF</span>
@@ -261,9 +263,6 @@ export default function WorkerMobileApp() {
           <button id="pwa-install-btn" className="btn btn-sm btn-primary" onClick={handleInstallClick}>
             📲 Install
           </button>
-          <a href="/" className="btn btn-sm" style={{ textDecoration: 'none' }}>
-            Admin
-          </a>
         </div>
       </header>
 
@@ -280,7 +279,7 @@ export default function WorkerMobileApp() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 700, fontSize: 13 }}>
-            🛡️ Enable Real App Blocking on Android (v{status?.appRelease?.versionName ?? '1.1.0'})
+            🛡️ Enable Real App Blocking on Android (v{status?.appRelease?.versionName ?? '1.2.0'})
           </div>
           <a
             href={status?.appRelease?.apkUrl ?? '/shiftfocus-worker.apk'}
@@ -321,22 +320,22 @@ export default function WorkerMobileApp() {
         </div>
       )}
 
-      {/* UNPAIRED STATE: 1-TAP WORKER LOGIN / TOKEN PAIRING / REGISTRATION */}
+      {/* UNPAIRED STATE: LOGIN BY MOBILE NUMBER / ENROLLMENT CODE / NEW WORKER */}
       {!deviceToken || !status ? (
         <main style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <section className="panel panel-pad">
-            <h1 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 650 }}>Connect Your Mobile Phone</h1>
+            <h1 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 650 }}>Employee Sign In</h1>
             <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)' }}>
-              Select a pilot worker below for 1-tap pairing, or use an enrollment token from HR.
+              Enter your registered mobile number to sign in and connect your phone.
             </p>
 
             <div className="segmented" style={{ width: '100%', marginBottom: 14 }}>
               <button
-                className={`seg-btn ${pairMode === 'quick' ? 'active' : ''}`}
+                className={`seg-btn ${pairMode === 'phone' ? 'active' : ''}`}
                 style={{ flex: 1 }}
-                onClick={() => setPairMode('quick')}
+                onClick={() => setPairMode('phone')}
               >
-                1-Tap Pilot Worker
+                Mobile Number
               </button>
               <button
                 className={`seg-btn ${pairMode === 'token' ? 'active' : ''}`}
@@ -354,27 +353,27 @@ export default function WorkerMobileApp() {
               </button>
             </div>
 
-            {pairMode === 'quick' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {demoWorkers.map((w) => (
-                  <button
-                    key={w.id}
-                    className="btn"
-                    disabled={busy}
-                    style={{ justifyContent: 'space-between', padding: '11px 14px' }}
-                    onClick={() => quickPairWorker(w.external_employee_id)}
-                  >
-                    <span style={{ textAlign: 'left' }}>
-                      <strong style={{ display: 'block', fontSize: 14 }}>{w.full_name}</strong>
-                      <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-                        Attendance ID #{w.external_employee_id} · {w.phone}
-                      </span>
-                    </span>
-                    <span className={`pill ${w.shift_state === 'on_shift' ? 'pill-focus' : 'pill-ok'}`}>
-                      {w.shift_state} →
-                    </span>
-                  </button>
-                ))}
+            {pairMode === 'phone' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <input
+                  id="worker-phone-login-input"
+                  className="input mono"
+                  type="tel"
+                  placeholder="Enter your mobile number (e.g. +918805800443)"
+                  value={loginPhone}
+                  onChange={(e) => setLoginPhone(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && loginPhone.trim()) void loginWithPhone();
+                  }}
+                />
+                <button
+                  id="worker-phone-login-btn"
+                  className="btn btn-primary"
+                  disabled={busy || !loginPhone.trim()}
+                  onClick={loginWithPhone}
+                >
+                  {busy ? 'Signing in…' : 'Sign In with Mobile Number'}
+                </button>
               </div>
             )}
 
@@ -436,7 +435,7 @@ export default function WorkerMobileApp() {
                       setRegName('');
                       setRegPhone('');
                       setRegExtId('');
-                      notify('ok', 'Request sent! Once HR approves your request in the Admin Console, you can pair your phone.');
+                      notify('ok', 'Request sent! Once HR approves your request in the Admin Console, you can sign in with your mobile number.');
                     } catch (err: any) {
                       notify('err', err.message);
                     } finally {
@@ -473,6 +472,7 @@ export default function WorkerMobileApp() {
             <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid var(--border-hairline)' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 Signed in as <strong style={{ color: 'var(--text-primary)' }}>{status.employee?.fullName}</strong>
+                {status.employee?.phone ? ` (${status.employee.phone})` : ''}
               </span>
               <button
                 className="btn btn-sm"
@@ -482,7 +482,7 @@ export default function WorkerMobileApp() {
                   setStatus(null);
                 }}
               >
-                Switch Worker
+                Sign Out
               </button>
             </div>
           </section>

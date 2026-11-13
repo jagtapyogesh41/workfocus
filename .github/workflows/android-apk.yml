@@ -2,7 +2,6 @@ name: Build Android Worker APK
 
 on:
   push:
-    branches: [main]
     paths:
       - 'apps/android-worker/**'
       - '.github/workflows/android-apk.yml'

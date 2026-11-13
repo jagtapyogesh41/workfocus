@@ -25,7 +25,7 @@ import { Actor, AuditService } from '../services/audit.service';
 import { DeviceService } from '../services/device.service';
 import { IngestionService } from '../services/ingestion.service';
 import { JobQueue } from '../services/job-queue';
-import { ReconcileService } from '../services/reconcile.service';
+import { DeviceSyncService, ReconcileService } from '../services/reconcile.service';
 
 const actorOf = (a: AdminPrincipal): Actor => ({ type: 'admin', id: a.adminId });
 const appSchema = z.object({
@@ -42,6 +42,7 @@ export class AdminController {
     private readonly devices: DeviceService,
     private readonly ingestion: IngestionService,
     private readonly reconcile: ReconcileService,
+    private readonly deviceSync: DeviceSyncService,
     private readonly jobs: JobQueue,
   ) {}
 
@@ -530,14 +531,30 @@ export class AdminController {
       }),
       body,
     );
-    return this.ingestion.ingest({ companyId: a.companyId, sourceSystem: 'simulator', actor: actorOf(a) }, [
+    const now = new Date();
+    const res = await this.ingestion.ingest(
       {
-        event_id: input.vendorEventId ?? `sim-${randomUUID()}`,
-        employee_id: input.externalEmployeeId,
-        event_type: input.eventType,
-        occurred_at: input.occurredAt ?? new Date().toISOString(),
-        correction_status: 'original',
+        companyId: a.companyId,
+        sourceSystem: 'simulator',
+        actor: actorOf(a),
+        reconcileInline: async (ids) => {
+          for (const id of ids) {
+            await this.reconcile.reconcileEmployee(id, { actor: actorOf(a), triggerReceivedAt: now });
+            const dev = await this.db.one(`select id from devices where employee_id = $1 and enrollment_status = 'enrolled'`, [id]);
+            if (dev) await this.deviceSync.sync(dev.id).catch(() => undefined);
+          }
+        },
       },
-    ]);
+      [
+        {
+          event_id: input.vendorEventId ?? `sim-${randomUUID()}`,
+          employee_id: input.externalEmployeeId,
+          event_type: input.eventType,
+          occurred_at: input.occurredAt ?? now.toISOString(),
+          correction_status: 'original',
+        },
+      ],
+    );
+    return res;
   }
 }

@@ -8,6 +8,7 @@ import { Db } from '../db/db.service';
 import { ATTENDANCE_EVENT_TYPES } from '../domain/policy-engine';
 import { DeviceService, OVERRIDE_REASONS } from '../services/device.service';
 import { IngestionService } from '../services/ingestion.service';
+import { DeviceSyncService, ReconcileService } from '../services/reconcile.service';
 
 /** API used by the client-side attendance connector (outbound HTTPS from the client's network). */
 @Controller('v1/connector')
@@ -55,13 +56,15 @@ export class ConnectorController {
   }
 }
 
-/** API used by the employee's Android / Mobile PWA client (enrollment, status, emergency override, and pilot pairing). */
+/** API used by the employee's Android / Mobile PWA client (enrollment, phone login, status, and emergency override). */
 @Controller('v1/device')
 export class DeviceController {
   constructor(
     private readonly db: Db,
     private readonly devices: DeviceService,
     private readonly ingestion: IngestionService,
+    private readonly reconcile: ReconcileService,
+    private readonly deviceSync: DeviceSyncService,
   ) {}
 
   @Post('enroll')
@@ -72,8 +75,60 @@ export class DeviceController {
   }
 
   /**
-   * Lists approved demo workers so an employee testing on their mobile phone at `/worker`
-   * can pair with 1 tap without needing admin credentials. Enabled only when simulatorEnabled=true.
+   * Employee sign-in using their registered mobile phone number (matches full E.164 or last 10 digits).
+   * Prevents employees from seeing or selecting other workers' names from a public list.
+   */
+  @Post('login-phone')
+  @HttpCode(200)
+  async loginByPhone(@Body() body: unknown) {
+    const input = parse(
+      z.object({
+        phone: z.string().min(6).max(30),
+        joinCode: z.string().max(40).optional(),
+        model: z.string().max(100).optional(),
+      }),
+      body,
+    );
+    const digits = input.phone.replace(/\D/g, '');
+    if (digits.length < 10) {
+      throw new BadRequestException('Please enter a valid 10-digit mobile number');
+    }
+    const last10 = digits.slice(-10);
+    const joinCode = input.joinCode?.trim() ? input.joinCode.trim().toUpperCase() : null;
+
+    const emp = await this.db.one(
+      `select e.id, e.company_id, e.full_name, e.phone, e.external_employee_id, e.status
+       from employees e
+       join companies c on c.id = e.company_id
+       where regexp_replace(e.phone, '\\D', '', 'g') like '%' || $1
+         and ($2::text is null or upper(c.join_code) = $2)
+       order by (e.status = 'approved') desc, e.created_at desc
+       limit 1`,
+      [last10, joinCode],
+    );
+    if (!emp) {
+      throw new NotFoundException('Mobile number not registered. Use "New Worker" tab to request access first.');
+    }
+    if (emp.status !== 'approved') {
+      throw new ForbiddenException(`Your registration (${emp.full_name}) is ${emp.status}. Please ask HR to approve your account.`);
+    }
+    const issued = await this.devices.issueEnrollment(emp.company_id, emp.id, { type: 'employee', id: emp.id });
+    const enrolled = await this.devices.enroll(issued.enrollmentToken, input.model ?? 'Employee Mobile Handset');
+    await this.deviceSync.sync(enrolled.deviceId).catch(() => undefined);
+    return {
+      ...enrolled,
+      employee: {
+        id: emp.id,
+        fullName: emp.full_name,
+        phone: emp.phone,
+        externalEmployeeId: emp.external_employee_id,
+      },
+      status: await this.devices.status(enrolled.deviceId),
+    };
+  }
+
+  /**
+   * Lists approved demo workers (used only by internal simulator tests).
    */
   @Get('demo-workers')
   async demoWorkers() {
@@ -88,7 +143,7 @@ export class DeviceController {
   }
 
   /**
-   * 1-tap mobile pairing for pilot testing: issues an enrollment token and enrolls the caller's mobile handset.
+   * Mobile pairing by employeeId / externalEmployeeId / phone.
    */
   @Post('demo-pair')
   @HttpCode(200)
@@ -98,10 +153,14 @@ export class DeviceController {
       z.object({
         employeeId: z.string().uuid().optional(),
         externalEmployeeId: z.string().min(1).max(100).optional(),
+        phone: z.string().min(6).max(30).optional(),
         model: z.string().max(100).optional(),
       }),
       body,
     );
+    if (input.phone) {
+      return this.loginByPhone({ phone: input.phone, model: input.model });
+    }
     const emp = input.employeeId
       ? await this.db.one(`select id, company_id, full_name, external_employee_id from employees where id = $1 and status = 'approved'`, [input.employeeId])
       : await this.db.one(
@@ -111,14 +170,17 @@ export class DeviceController {
     if (!emp) throw new NotFoundException('Approved worker not found');
     const issued = await this.devices.issueEnrollment(emp.company_id, emp.id, { type: 'employee', id: emp.id });
     const enrolled = await this.devices.enroll(issued.enrollmentToken, input.model ?? 'Worker Mobile PWA');
+    await this.deviceSync.sync(enrolled.deviceId).catch(() => undefined);
     return {
       ...enrolled,
       employee: { id: emp.id, fullName: emp.full_name, externalEmployeeId: emp.external_employee_id },
+      status: await this.devices.status(enrolled.deviceId),
     };
   }
 
   /**
-   * Allows a paired mobile handset in pilot demo mode to simulate a gate terminal punch directly from the phone.
+   * Allows a paired mobile handset to record a shift punch (`clock_in`, `break_start`, `break_end`, `clock_out`)
+   * with immediate synchronous reconciliation and device sync so both dashboard and phone update instantaneously.
    */
   @Post('demo-punch')
   @HttpCode(200)
@@ -128,21 +190,30 @@ export class DeviceController {
     const { eventType } = parse(z.object({ eventType: z.enum(ATTENDANCE_EVENT_TYPES) }), body);
     const emp = await this.db.one(`select external_employee_id from employees where id = $1`, [d.employeeId]);
     if (!emp?.external_employee_id) throw new BadRequestException('Employee has no attendance ID');
+    const now = new Date();
     await this.ingestion.ingest(
-      { companyId: d.companyId, sourceSystem: 'simulator', actor: { type: 'employee', id: d.employeeId } },
+      {
+        companyId: d.companyId,
+        sourceSystem: 'simulator',
+        actor: { type: 'employee', id: d.employeeId },
+        reconcileInline: async (ids) => {
+          for (const id of ids) {
+            await this.reconcile.reconcileEmployee(id, { actor: { type: 'employee', id: d.employeeId }, triggerReceivedAt: now });
+          }
+        },
+      },
       [
         {
           event_id: `mob-${randomUUID()}`,
           employee_id: emp.external_employee_id,
           event_type: eventType,
-          occurred_at: new Date().toISOString(),
+          occurred_at: now.toISOString(),
           correction_status: 'original',
-          terminal_id: 'MOBILE-SIM',
+          terminal_id: 'MOBILE-APP',
         },
       ],
     );
-    // Allow worker queue a short beat or return current status immediately
-    await new Promise((r) => setTimeout(r, 650));
+    await this.deviceSync.sync(d.deviceId).catch(() => undefined);
     return this.devices.status(d.deviceId);
   }
 

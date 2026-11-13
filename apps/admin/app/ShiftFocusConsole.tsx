@@ -256,11 +256,9 @@ export default function ShiftFocusConsole() {
       });
       setPhoneAppNotice(null);
       notify('ok', `Attendance punch recorded: #${targetExtId} → ${eventType}`);
-      setTimeout(async () => {
-        await refreshAll(token);
-        const dt = deviceTokens[targetExtId];
-        if (dt) await refreshPhone(dt);
-      }, 500);
+      await refreshAll(token);
+      const dt = deviceTokens[targetExtId];
+      if (dt) await refreshPhone(dt);
     } catch (err: any) {
       notify('err', err.message);
     }
