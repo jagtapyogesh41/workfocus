@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ShiftFocus Worker</string>
+    <string name="accessibility_description">Detects when a restricted app is opened during an active work shift so ShiftFocus can pause it while keeping Phone, SMS, and WhatsApp open.</string>
+</resources>

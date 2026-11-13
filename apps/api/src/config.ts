@@ -26,6 +26,12 @@ export const config = {
     /** Periodic sweep: fail-safe checks, stale job recovery, and device re-sync. */
     sweepMs: Number(env.SWEEP_INTERVAL_MS ?? 30_000),
   },
+  emm: {
+    provider: (env.EMM_PROVIDER ?? 'mock') as 'mock' | 'webhook',
+    webhookUrl: env.EMM_WEBHOOK_URL ?? '',
+    webhookSecret: env.EMM_WEBHOOK_SECRET ?? '',
+    webhookTimeoutMs: Number(env.EMM_WEBHOOK_TIMEOUT_MS ?? 8000),
+  },
   emmMock: {
     latencyMs: Number(env.EMM_MOCK_LATENCY_MS ?? 250),
     /** 0..1 probability that a mock policy push fails (to exercise retries). */
