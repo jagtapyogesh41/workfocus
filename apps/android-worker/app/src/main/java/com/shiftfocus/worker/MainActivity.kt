@@ -140,7 +140,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderPairingSection() {
         val header = TextView(this).apply {
-            text = "2. Pair This Phone"
+            text = "2. Employee Sign In (By Mobile Number)"
             textSize = 15f
             setTextColor(0xFF38BDF8.toInt())
             setPadding(0, 32, 0, 8)
@@ -155,8 +155,45 @@ class MainActivity : AppCompatActivity() {
         }
         rootContainer.addView(serverInput)
 
+        val phoneInput = EditText(this).apply {
+            hint = "Registered Mobile Number (e.g. +918805800443)"
+            inputType = android.text.InputType.TYPE_CLASS_PHONE
+            setTextColor(0xFFF1F5F9.toInt())
+            setHintTextColor(0xFF64748B.toInt())
+        }
+        rootContainer.addView(phoneInput)
+
+        rootContainer.addView(Button(this).apply {
+            text = "Sign In with Mobile Number"
+            setOnClickListener {
+                val baseUrl = serverInput.text.toString().trim()
+                val phone = phoneInput.text.toString().trim()
+                if (phone.isBlank()) {
+                    Toast.makeText(this@MainActivity, "Enter your registered mobile number", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                ShiftFocusStore.setServerUrl(this@MainActivity, baseUrl)
+                thread {
+                    runCatching {
+                        val devTok = ShiftFocusApi.loginByPhone(baseUrl, phone)
+                        val st = ShiftFocusApi.fetchStatus(baseUrl, devTok)
+                        ShiftFocusStore.setDeviceToken(this@MainActivity, devTok)
+                        ShiftFocusStore.savePolicy(this@MainActivity, st)
+                    }.onSuccess {
+                        runOnUiThread {
+                            FocusMonitorService.start(this@MainActivity)
+                            Toast.makeText(this@MainActivity, "Signed in & connected!", Toast.LENGTH_SHORT).show()
+                            renderUi()
+                        }
+                    }.onFailure { err ->
+                        runOnUiThread { Toast.makeText(this@MainActivity, err.message, Toast.LENGTH_LONG).show() }
+                    }
+                }
+            }
+        })
+
         val tokenInput = EditText(this).apply {
-            hint = "Enrollment token (sfe_...)"
+            hint = "Or paste sfe_... enrollment token"
             setTextColor(0xFFF1F5F9.toInt())
             setHintTextColor(0xFF64748B.toInt())
         }
@@ -173,59 +210,41 @@ class MainActivity : AppCompatActivity() {
                 }
                 ShiftFocusStore.setServerUrl(this@MainActivity, baseUrl)
                 thread {
-                    runCatching { ShiftFocusApi.enrollWithToken(baseUrl, enrollTok) }
-                        .onSuccess { devTok ->
-                            ShiftFocusStore.setDeviceToken(this@MainActivity, devTok)
-                            runOnUiThread {
-                                FocusMonitorService.start(this@MainActivity)
-                                renderUi()
-                            }
+                    runCatching {
+                        val devTok = ShiftFocusApi.enrollWithToken(baseUrl, enrollTok)
+                        val st = ShiftFocusApi.fetchStatus(baseUrl, devTok)
+                        ShiftFocusStore.setDeviceToken(this@MainActivity, devTok)
+                        ShiftFocusStore.savePolicy(this@MainActivity, st)
+                    }.onSuccess {
+                        runOnUiThread {
+                            FocusMonitorService.start(this@MainActivity)
+                            renderUi()
                         }
-                        .onFailure { err ->
-                            runOnUiThread { Toast.makeText(this@MainActivity, err.message, Toast.LENGTH_LONG).show() }
-                        }
+                    }.onFailure { err ->
+                        runOnUiThread { Toast.makeText(this@MainActivity, err.message, Toast.LENGTH_LONG).show() }
+                    }
                 }
             }
         })
+    }
 
-        val demoBtn = Button(this).apply {
-            text = "Load 1-Tap Pilot Workers"
-            setOnClickListener {
-                val baseUrl = serverInput.text.toString().trim()
-                ShiftFocusStore.setServerUrl(this@MainActivity, baseUrl)
-                thread {
-                    runCatching { ShiftFocusApi.fetchDemoWorkers(baseUrl) }
-                        .onSuccess { workers ->
-                            runOnUiThread {
-                                workers.forEach { w ->
-                                    rootContainer.addView(Button(this@MainActivity).apply {
-                                        text = "Pair as ${w.fullName} (#${w.externalEmployeeId})"
-                                        setOnClickListener {
-                                            thread {
-                                                runCatching { ShiftFocusApi.demoPair(baseUrl, w.employeeId) }
-                                                    .onSuccess { devTok ->
-                                                        ShiftFocusStore.setDeviceToken(this@MainActivity, devTok)
-                                                        runOnUiThread {
-                                                            FocusMonitorService.start(this@MainActivity)
-                                                            renderUi()
-                                                        }
-                                                    }
-                                                    .onFailure { err ->
-                                                        runOnUiThread { Toast.makeText(this@MainActivity, err.message, Toast.LENGTH_LONG).show() }
-                                                    }
-                                            }
-                                        }
-                                    })
-                                }
-                            }
-                        }
-                        .onFailure { err ->
-                            runOnUiThread { Toast.makeText(this@MainActivity, "Failed: ${err.message}", Toast.LENGTH_LONG).show() }
-                        }
+    private fun sendShiftPunch(eventType: String) {
+        val token = ShiftFocusStore.getDeviceToken(this) ?: return
+        val baseUrl = ShiftFocusStore.getServerUrl(this)
+        thread {
+            runCatching {
+                ShiftFocusApi.sendPunch(baseUrl, token, eventType)
+                val updated = ShiftFocusApi.fetchStatus(baseUrl, token)
+                ShiftFocusStore.savePolicy(this, updated)
+            }.onSuccess {
+                runOnUiThread {
+                    Toast.makeText(this, "Shift updated: $eventType", Toast.LENGTH_SHORT).show()
+                    renderUi()
                 }
+            }.onFailure { err ->
+                runOnUiThread { Toast.makeText(this, "Punch failed: ${err.message}", Toast.LENGTH_LONG).show() }
             }
         }
-        rootContainer.addView(demoBtn)
     }
 
     private fun renderStatusSection() {
@@ -257,9 +276,34 @@ class MainActivity : AppCompatActivity() {
             }
             textSize = 14f
             setTextColor(0xFFE2E8F0.toInt())
-            setPadding(0, 8, 0, 20)
+            setPadding(0, 8, 0, 16)
         }
         rootContainer.addView(info)
+
+        val punchHeader = TextView(this).apply {
+            text = "Shift Check-In / Check-Out Controls"
+            textSize = 14f
+            setTextColor(0xFF38BDF8.toInt())
+            setPadding(0, 8, 0, 8)
+        }
+        rootContainer.addView(punchHeader)
+
+        rootContainer.addView(Button(this).apply {
+            text = "▶ Clock In (Start Shift & Enable Focus Block)"
+            setOnClickListener { sendShiftPunch("clock_in") }
+        })
+        rootContainer.addView(Button(this).apply {
+            text = "☕ Start Break (Temporarily Lift Block)"
+            setOnClickListener { sendShiftPunch("break_start") }
+        })
+        rootContainer.addView(Button(this).apply {
+            text = "↩ End Break (Resume Focus Block)"
+            setOnClickListener { sendShiftPunch("break_end") }
+        })
+        rootContainer.addView(Button(this).apply {
+            text = "■ Clock Out (End Shift & Unlock All Apps)"
+            setOnClickListener { sendShiftPunch("clock_out") }
+        })
 
         if (policy.latestVersionCode > ShiftFocusStore.INSTALLED_VERSION_CODE) {
             rootContainer.addView(Button(this).apply {
@@ -322,7 +366,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         rootContainer.addView(Button(this).apply {
-            text = "Unpair Device"
+            text = "Sign Out"
             setOnClickListener {
                 FocusMonitorService.stop(this@MainActivity)
                 ShiftFocusStore.setDeviceToken(this@MainActivity, null)

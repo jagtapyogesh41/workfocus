@@ -50,33 +50,25 @@ object ShiftFocusApi {
         }
     }
 
-    fun fetchDemoWorkers(baseUrl: String): List<DemoWorker> {
-        val obj = request(baseUrl, "/v1/device/demo-workers")
-        val arr = obj.optJSONArray("workers") ?: JSONArray()
-        return (0 until arr.length()).map { i ->
-            val w = arr.getJSONObject(i)
-            DemoWorker(
-                employeeId = w.optString("employeeId"),
-                fullName = w.optString("fullName"),
-                externalEmployeeId = w.optString("externalEmployeeId"),
-            )
-        }
-    }
-
-    fun demoPair(baseUrl: String, employeeId: String): String {
+    fun loginByPhone(baseUrl: String, phone: String): String {
         val body = JSONObject()
-            .put("employeeId", employeeId)
-            .put("deviceModel", "${Build.MANUFACTURER} ${Build.MODEL}")
-        val obj = request(baseUrl, "/v1/device/demo-pair", method = "POST", body = body)
+            .put("phone", phone.trim())
+            .put("model", "${Build.MANUFACTURER} ${Build.MODEL} (Android APK)")
+        val obj = request(baseUrl, "/v1/device/login-phone", method = "POST", body = body)
         return obj.getString("deviceToken")
     }
 
     fun enrollWithToken(baseUrl: String, enrollmentToken: String): String {
         val body = JSONObject()
             .put("enrollmentToken", enrollmentToken)
-            .put("deviceModel", "${Build.MANUFACTURER} ${Build.MODEL}")
+            .put("model", "${Build.MANUFACTURER} ${Build.MODEL} (Android APK)")
         val obj = request(baseUrl, "/v1/device/enroll", method = "POST", body = body)
         return obj.getString("deviceToken")
+    }
+
+    fun sendPunch(baseUrl: String, deviceToken: String, eventType: String) {
+        val body = JSONObject().put("eventType", eventType)
+        request(baseUrl, "/v1/device/demo-punch", method = "POST", token = deviceToken, body = body)
     }
 
     fun fetchStatus(baseUrl: String, deviceToken: String): FocusPolicyState {

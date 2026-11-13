@@ -21,13 +21,24 @@ data class FocusPolicyState(
 )
 
 object ShiftFocusStore {
-    const val INSTALLED_VERSION_CODE = 2
-    const val INSTALLED_VERSION_NAME = "1.1.0"
+    const val INSTALLED_VERSION_CODE = 3
+    const val INSTALLED_VERSION_NAME = "1.2.0"
     private const val PREFS = "shiftfocus_worker_prefs"
     private const val KEY_SERVER_URL = "server_url"
     private const val KEY_DEVICE_TOKEN = "device_token"
     private const val KEY_POLICY_JSON = "cached_policy_json"
     const val DEFAULT_SERVER_URL = "https://shiftfocus-6gaz.onrender.com"
+
+    private val EXTRA_PACKAGE_ALIASES = mapOf(
+        "com.instagram.lite" to "Instagram",
+        "com.facebook.lite" to "Facebook",
+        "com.facebook.orca" to "Facebook Messenger",
+        "com.zhiliaoapp.musically" to "TikTok",
+        "com.ss.android.ugc.trill" to "TikTok",
+        "com.twitter.android" to "X / Twitter",
+        "com.netflix.mediaclient" to "Netflix",
+        "in.startv.hotstar" to "Hotstar",
+    )
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -94,9 +105,32 @@ object ShiftFocusStore {
 
     fun blockedLabelFor(ctx: Context, packageName: String): String? {
         if (packageName.isBlank() || packageName == ctx.packageName) return null
+        if (packageName.startsWith("com.android.systemui") || packageName.contains("launcher")) return null
         val policy = getPolicy(ctx)
         if (policy.desiredMode != "focus" || policy.overrideActive) return null
-        if (policy.alwaysAllowedApps.any { it.packageName == packageName }) return null
-        return policy.restrictedApps.firstOrNull { it.packageName == packageName }?.label
+        if (policy.alwaysAllowedApps.any { it.packageName.equals(packageName, ignoreCase = true) }) return null
+
+        // 1. Exact package match from workplace policy
+        policy.restrictedApps.firstOrNull { it.packageName.equals(packageName, ignoreCase = true) }?.let {
+            return it.label
+        }
+
+        // 2. Common Lite/variant package match
+        EXTRA_PACKAGE_ALIASES[packageName]?.let { return it }
+
+        // 3. Match by installed app display label (e.g., if admin typed "Instagram" with a custom package id)
+        val appLabel = runCatching {
+            val pm = ctx.packageManager
+            val info = pm.getApplicationInfo(packageName, 0)
+            pm.getApplicationLabel(info).toString()
+        }.getOrNull()
+
+        if (!appLabel.isNullOrBlank()) {
+            policy.restrictedApps.firstOrNull {
+                it.label.equals(appLabel, ignoreCase = true) || appLabel.contains(it.label, ignoreCase = true)
+            }?.let { return it.label }
+        }
+
+        return null
     }
 }
