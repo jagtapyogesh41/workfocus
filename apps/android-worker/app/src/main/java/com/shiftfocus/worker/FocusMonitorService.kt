@@ -67,6 +67,9 @@ class FocusMonitorService : Service() {
         runCatching {
             val state = ShiftFocusApi.fetchStatus(baseUrl, token)
             ShiftFocusStore.savePolicy(this, state)
+            if (state.desiredMode != "focus" || state.overrideActive) {
+                BlockOverlayController.dismiss(this)
+            }
             val summary = when {
                 state.overrideActive -> "Emergency Override active — all apps unlocked"
                 state.desiredMode == "focus" -> "Focus Mode ON (${state.restrictedApps.size} apps paused)"
@@ -74,6 +77,9 @@ class FocusMonitorService : Service() {
             }
             val nm = getSystemService(NotificationManager::class.java)
             nm.notify(NOTIF_ID, buildNotification(summary))
+        }.onFailure { err ->
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.notify(NOTIF_ID, buildNotification("Sync warning: ${err.message?.take(40) ?: "retrying"}"))
         }
     }
 
@@ -85,10 +91,10 @@ class FocusMonitorService : Service() {
         val blockedLabel = ShiftFocusStore.blockedLabelFor(this, fgPkg) ?: return
 
         val now = System.currentTimeMillis()
-        if (now - lastBlockedLaunchMs < 1100) return
+        if (now - lastBlockedLaunchMs < 900) return
         lastBlockedLaunchMs = now
 
-        BlockedAppActivity.launch(this, blockedLabel, fgPkg)
+        BlockOverlayController.show(this, blockedLabel, fgPkg)
     }
 
     private fun detectForegroundPackage(): String? {
@@ -100,14 +106,19 @@ class FocusMonitorService : Service() {
         var lastPkg: String? = null
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
+            val pkg = event.packageName ?: continue
+            if (pkg == packageName || pkg.startsWith("com.android.systemui")) continue
             if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED || event.eventType == 1) {
-                lastPkg = event.packageName
+                lastPkg = pkg
             }
         }
         if (!lastPkg.isNullOrBlank()) return lastPkg
 
         val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, end - 120_000, end)
-        return stats?.maxByOrNull { it.lastTimeUsed }?.packageName
+        return stats
+            ?.filter { it.packageName != packageName && !it.packageName.startsWith("com.android.systemui") }
+            ?.maxByOrNull { it.lastTimeUsed }
+            ?.packageName
     }
 
     private fun ensureChannel() {

@@ -21,8 +21,8 @@ data class FocusPolicyState(
 )
 
 object ShiftFocusStore {
-    const val INSTALLED_VERSION_CODE = 3
-    const val INSTALLED_VERSION_NAME = "1.2.0"
+    const val INSTALLED_VERSION_CODE = 4
+    const val INSTALLED_VERSION_NAME = "1.3.0"
     private const val PREFS = "shiftfocus_worker_prefs"
     private const val KEY_SERVER_URL = "server_url"
     private const val KEY_DEVICE_TOKEN = "device_token"

@@ -41,8 +41,8 @@ export const config = {
   /** A device that has not checked in for this long is reported as stale. */
   deviceStaleMinutes: Number(env.DEVICE_Stale_MINUTES ?? env.DEVICE_STALE_MINUTES ?? 15),
   workerApp: {
-    versionCode: Number(env.WORKER_APP_VERSION_CODE ?? 3),
-    versionName: env.WORKER_APP_VERSION_NAME ?? '1.2.0',
+    versionCode: Number(env.WORKER_APP_VERSION_CODE ?? 4),
+    versionName: env.WORKER_APP_VERSION_NAME ?? '1.3.0',
     apkUrl: env.WORKER_APP_APK_URL ?? '/shiftfocus-worker.apk',
   },
 };
