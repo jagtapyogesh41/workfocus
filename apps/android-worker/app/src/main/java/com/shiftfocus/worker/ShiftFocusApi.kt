@@ -88,6 +88,7 @@ object ShiftFocusApi {
                 AppRef(item.optString("packageName"), item.optString("label"))
             }
         }
+        val release = obj.optJSONObject("appRelease")
         return FocusPolicyState(
             employeeName = obj.optJSONObject("employee")?.optString("fullName").orEmpty(),
             companyName = obj.optJSONObject("company")?.optString("name").orEmpty(),
@@ -97,6 +98,9 @@ object ShiftFocusApi {
             overrideActive = obj.optJSONObject("override") != null,
             restrictedApps = parseApps(obj.optJSONArray("restrictedApps")),
             alwaysAllowedApps = parseApps(obj.optJSONArray("alwaysAllowedApps")),
+            latestVersionCode = release?.optInt("versionCode", 1) ?: 1,
+            latestVersionName = release?.optString("versionName", "1.0.0") ?: "1.0.0",
+            apkUrl = release?.optString("apkUrl", "/shiftfocus-worker.apk") ?: "/shiftfocus-worker.apk",
         )
     }
 

@@ -138,6 +138,11 @@ export class DeviceService {
       restrictedApps: d.restricted_apps,
       alwaysAllowedApps: d.always_allowed_apps,
       policy: { breakMode: d.break_mode, maxShiftHours: d.max_shift_hours },
+      appRelease: {
+        versionCode: config.workerApp.versionCode,
+        versionName: config.workerApp.versionName,
+        apkUrl: config.workerApp.apkUrl,
+      },
     };
   }
 

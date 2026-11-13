@@ -15,9 +15,14 @@ data class FocusPolicyState(
     val overrideActive: Boolean = false,
     val restrictedApps: List<AppRef> = emptyList(),
     val alwaysAllowedApps: List<AppRef> = emptyList(),
+    val latestVersionCode: Int = 1,
+    val latestVersionName: String = "1.0.0",
+    val apkUrl: String = "/shiftfocus-worker.apk",
 )
 
 object ShiftFocusStore {
+    const val INSTALLED_VERSION_CODE = 2
+    const val INSTALLED_VERSION_NAME = "1.1.0"
     private const val PREFS = "shiftfocus_worker_prefs"
     private const val KEY_SERVER_URL = "server_url"
     private const val KEY_DEVICE_TOKEN = "device_token"
@@ -47,6 +52,9 @@ object ShiftFocusStore {
             put("desiredMode", state.desiredMode)
             put("reasonLabel", state.reasonLabel)
             put("overrideActive", state.overrideActive)
+            put("latestVersionCode", state.latestVersionCode)
+            put("latestVersionName", state.latestVersionName)
+            put("apkUrl", state.apkUrl)
             put("restrictedApps", JSONArray().apply {
                 state.restrictedApps.forEach { put(JSONObject().put("packageName", it.packageName).put("label", it.label)) }
             })
@@ -77,6 +85,9 @@ object ShiftFocusStore {
                 overrideActive = obj.optBoolean("overrideActive", false),
                 restrictedApps = parseApps(obj.optJSONArray("restrictedApps")),
                 alwaysAllowedApps = parseApps(obj.optJSONArray("alwaysAllowedApps")),
+                latestVersionCode = obj.optInt("latestVersionCode", 1),
+                latestVersionName = obj.optString("latestVersionName", "1.0.0"),
+                apkUrl = obj.optString("apkUrl", "/shiftfocus-worker.apk"),
             )
         }.getOrDefault(FocusPolicyState())
     }

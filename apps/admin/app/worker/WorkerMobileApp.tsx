@@ -124,6 +124,32 @@ export default function WorkerMobileApp() {
     }
   };
 
+  const handleUpdateApp = async () => {
+    setBusy(true);
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(
+          regs.map(async (r) => {
+            await r.update().catch(() => undefined);
+            r.waiting?.postMessage({ type: 'SKIP_WAITING' });
+          }),
+        );
+      }
+      if ('caches' in window) {
+        const keys = await window.caches.keys();
+        await Promise.all(keys.map((k) => window.caches.delete(k)));
+      }
+      if (deviceToken) {
+        await refreshStatus(deviceToken);
+      }
+      notify('ok', 'App updated to latest version! Reloading…');
+      setTimeout(() => window.location.reload(), 600);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const quickPairWorker = async (extId: string) => {
     setBusy(true);
     try {
@@ -218,7 +244,7 @@ export default function WorkerMobileApp() {
   return (
     <div style={{ maxWidth: 460, margin: '0 auto', minHeight: '100vh', padding: '14px 14px 36px', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Mobile App Top Bar */}
-      <header className="panel panel-pad" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      <header className="panel panel-pad" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div className="brand-cluster">
           <span className="brand-mark">SF</span>
           <div>
@@ -228,15 +254,49 @@ export default function WorkerMobileApp() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button id="pwa-update-btn" className="btn btn-sm" disabled={busy} onClick={handleUpdateApp} title="Check for app updates and refresh policy">
+            🔄 Update App
+          </button>
           <button id="pwa-install-btn" className="btn btn-sm btn-primary" onClick={handleInstallClick}>
-            📲 Install App
+            📲 Install
           </button>
           <a href="/" className="btn btn-sm" style={{ textDecoration: 'none' }}>
             Admin
           </a>
         </div>
       </header>
+
+      {/* Upgrade Banner: Real Android App Blocker APK for Phones that only have Web PWA installed */}
+      <section
+        className="panel panel-pad"
+        style={{
+          border: '1px solid var(--status-focus)',
+          background: 'var(--status-focus-soft)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>
+            🛡️ Enable Real App Blocking on Android (v{status?.appRelease?.versionName ?? '1.1.0'})
+          </div>
+          <a
+            href={status?.appRelease?.apkUrl ?? '/shiftfocus-worker.apk'}
+            download="ShiftFocus-Worker.apk"
+            className="btn btn-sm btn-primary"
+            style={{ textDecoration: 'none' }}
+          >
+            ⬇️ Download / Update Android APK
+          </a>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+          Web browsers cannot block other apps by themselves. Install or update the{' '}
+          <strong>ShiftFocus Android Companion APK</strong> and turn on <strong>Usage Access</strong> +{' '}
+          <strong>Display Over Other Apps</strong> so restricted apps (Instagram, YouTube, etc.) are actually blocked when you clock in.
+        </div>
+      </section>
 
       {/* Install instructions banner when tapped on browsers without automatic prompt */}
       {showInstallHelp && (
