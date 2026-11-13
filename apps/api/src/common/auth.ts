@@ -94,6 +94,13 @@ export class ConnectorAuthGuard implements CanActivate {
   }
 }
 
+export function signDeviceToken(p: DevicePrincipal): string {
+  return jwt.sign({ sub: p.deviceId, eid: p.employeeId, cid: p.companyId, typ: 'device' }, config.jwtSecret, {
+    expiresIn: '365d',
+    issuer: 'shiftfocus-device',
+  });
+}
+
 @Injectable()
 export class DeviceAuthGuard implements CanActivate {
   constructor(private readonly db: Db) {}
@@ -101,8 +108,27 @@ export class DeviceAuthGuard implements CanActivate {
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest();
     const token = bearer(req.headers.authorization);
-    const parsed = token && parseToken(token, 'sfd');
-    if (!token || !parsed) throw new UnauthorizedException('Missing or malformed device token');
+    if (!token) throw new UnauthorizedException('Missing device token');
+
+    // 1. Stateless JWT device token (allows Android APK and Web PWA to stay signed in simultaneously)
+    if (!token.startsWith('sfd_')) {
+      try {
+        const payload = jwt.verify(token, config.jwtSecret, { issuer: 'shiftfocus-device' }) as jwt.JwtPayload;
+        const row = await this.db.one<{ id: string; employee_id: string; company_id: string }>(
+          `select id, employee_id, company_id from devices where id = $1 and enrollment_status = 'enrolled'`,
+          [String(payload.sub)],
+        );
+        if (!row) throw new UnauthorizedException('Device unenrolled');
+        req.device = { deviceId: row.id, employeeId: row.employee_id, companyId: row.company_id } satisfies DevicePrincipal;
+        return true;
+      } catch {
+        throw new UnauthorizedException('Invalid device token');
+      }
+    }
+
+    // 2. Legacy sfd_ prefix/hash token
+    const parsed = parseToken(token, 'sfd');
+    if (!parsed) throw new UnauthorizedException('Malformed device token');
     const row = await this.db.one<{ id: string; employee_id: string; company_id: string; device_token_hash: string }>(
       `select id, employee_id, company_id, device_token_hash from devices
        where device_token_prefix = $1 and enrollment_status = 'enrolled'`,

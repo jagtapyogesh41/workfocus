@@ -9,7 +9,8 @@ class ShiftAccessibilityService : AccessibilityService() {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         val blockedLabel = ShiftFocusStore.blockedLabelFor(this, pkg) ?: return
-        BlockedAppActivity.launch(this, blockedLabel, pkg)
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        BlockOverlayController.show(this, blockedLabel, pkg)
     }
 
     override fun onInterrupt() = Unit

@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, NotFoundException, Post, Req, UseGuards } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { ConnectorAuthGuard, ConnectorPrincipal, CurrentConnector, CurrentDevice, DeviceAuthGuard, DevicePrincipal } from '../common/auth';
+import { ConnectorAuthGuard, ConnectorPrincipal, CurrentConnector, CurrentDevice, DeviceAuthGuard, DevicePrincipal, signDeviceToken } from '../common/auth';
 import { parse } from '../common/validation';
 import { config } from '../config';
 import { Db } from '../db/db.service';
@@ -112,18 +112,34 @@ export class DeviceController {
     if (emp.status !== 'approved') {
       throw new ForbiddenException(`Your registration (${emp.full_name}) is ${emp.status}. Please ask HR to approve your account.`);
     }
-    const issued = await this.devices.issueEnrollment(emp.company_id, emp.id, { type: 'employee', id: emp.id });
-    const enrolled = await this.devices.enroll(issued.enrollmentToken, input.model ?? 'Employee Mobile Handset');
-    await this.deviceSync.sync(enrolled.deviceId).catch(() => undefined);
+    const existingDev = await this.db.one<{ id: string; enrollment_status: string }>(
+      `select id, enrollment_status from devices where employee_id = $1`,
+      [emp.id],
+    );
+    let deviceId: string;
+    if (existingDev && existingDev.enrollment_status === 'enrolled') {
+      deviceId = existingDev.id;
+      if (input.model) {
+        await this.db.query(`update devices set model = $2, last_seen_at = now() where id = $1`, [deviceId, input.model]);
+      }
+      await this.reconcile.reconcileEmployee(emp.id);
+    } else {
+      const issued = await this.devices.issueEnrollment(emp.company_id, emp.id, { type: 'employee', id: emp.id });
+      const enrolled = await this.devices.enroll(issued.enrollmentToken, input.model ?? 'Employee Mobile Handset');
+      deviceId = enrolled.deviceId;
+    }
+    await this.deviceSync.sync(deviceId).catch(() => undefined);
+    const jwtDeviceToken = signDeviceToken({ deviceId, employeeId: emp.id, companyId: emp.company_id });
     return {
-      ...enrolled,
+      deviceToken: jwtDeviceToken,
+      deviceId,
       employee: {
         id: emp.id,
         fullName: emp.full_name,
         phone: emp.phone,
         externalEmployeeId: emp.external_employee_id,
       },
-      status: await this.devices.status(enrolled.deviceId),
+      status: await this.devices.status(deviceId),
     };
   }
 

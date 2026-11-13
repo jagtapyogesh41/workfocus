@@ -279,7 +279,7 @@ export default function WorkerMobileApp() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 700, fontSize: 13 }}>
-            🛡️ Enable Real App Blocking on Android (v{status?.appRelease?.versionName ?? '1.2.0'})
+            🛡️ Enable Real App Blocking on Android (v{status?.appRelease?.versionName ?? '1.3.0'})
           </div>
           <a
             href={status?.appRelease?.apkUrl ?? '/shiftfocus-worker.apk'}

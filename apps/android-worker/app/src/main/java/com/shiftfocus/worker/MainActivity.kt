@@ -305,6 +305,21 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { sendShiftPunch("clock_out") }
         })
 
+        rootContainer.addView(Button(this).apply {
+            text = "🛡️ Test Focus Block Overlay Now"
+            setOnClickListener {
+                if (!hasUsageAccess() || !hasOverlayPermission()) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Please grant BOTH Usage Access and Display Over Other Apps at the top first!",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                } else {
+                    BlockOverlayController.show(this@MainActivity, "Instagram (Test)", "com.instagram.android")
+                }
+            }
+        })
+
         if (policy.latestVersionCode > ShiftFocusStore.INSTALLED_VERSION_CODE) {
             rootContainer.addView(Button(this).apply {
                 text = "⬇️ Update App to v${policy.latestVersionName} (New Release)"
