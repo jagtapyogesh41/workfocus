@@ -3,7 +3,7 @@ import ShiftFocusConsole from './ShiftFocusConsole';
 import { DEFAULT_KEYWORDS, SITE_NAME, SITE_URL } from './seo';
 
 export const metadata: Metadata = {
-  title: 'Attendance-Linked Workplace Focus Console & Pilot Lab',
+  title: 'Attendance-Linked Workplace Focus Software',
   description:
     'ShiftFocus connects biometric and HR attendance punches to Android Enterprise focus policies. Pause social & short-video apps on clock-in while keeping Phone, SMS, and WhatsApp open.',
   keywords: [
@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   ],
   alternates: {
     canonical: '/',
+    languages: {
+      en: '/',
+      'x-default': '/',
+    },
   },
   openGraph: {
     title: 'ShiftFocus — Attendance-Linked Workplace Focus Console',

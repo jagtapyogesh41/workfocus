@@ -1,14 +1,16 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import { DEFAULT_KEYWORDS, SITE_NAME, SITE_URL } from './seo';
 
 const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
+const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: SITE_NAME,
   title: {
-    default: 'ShiftFocus — Attendance-Linked Workplace Focus Console & Worker App',
+    default: 'ShiftFocus — Attendance-Linked Workplace Focus Software',
     template: `%s | ${SITE_NAME}`,
   },
   description:
@@ -17,6 +19,13 @@ export const metadata: Metadata = {
   authors: [{ name: 'ShiftFocus' }],
   creator: 'ShiftFocus',
   publisher: 'ShiftFocus',
+  alternates: {
+    canonical: '/',
+    languages: {
+      en: '/',
+      'x-default': '/',
+    },
+  },
   robots: {
     index: true,
     follow: true,
@@ -33,7 +42,7 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: SITE_URL,
     siteName: SITE_NAME,
-    title: 'ShiftFocus — Attendance-Linked Workplace Focus Console & Worker App',
+    title: 'ShiftFocus — Attendance-Linked Workplace Focus Software',
     description:
       'Connect biometric and HR attendance punches to Android Enterprise focus policies. Pause social & short-video apps during shifts with 1-tap emergency override.',
     images: [
@@ -66,7 +75,11 @@ export const metadata: Metadata = {
     title: 'ShiftFocus',
   },
   icons: {
-    icon: '/icon-192.png',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+    ],
+    shortcut: '/favicon.ico',
     apple: '/icon-192.png',
   },
 };
@@ -80,7 +93,20 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {gaMeasurementId ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', '${gaMeasurementId}');`}
+            </Script>
+          </>
+        ) : null}
+        {children}
+      </body>
     </html>
   );
 }
