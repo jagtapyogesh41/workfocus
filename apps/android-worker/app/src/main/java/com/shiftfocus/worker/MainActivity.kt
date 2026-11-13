@@ -247,6 +247,7 @@ class MainActivity : AppCompatActivity() {
 
         val info = TextView(this).apply {
             text = buildString {
+                appendLine("App Version: v${ShiftFocusStore.INSTALLED_VERSION_NAME} (build ${ShiftFocusStore.INSTALLED_VERSION_CODE})")
                 appendLine("Worker: ${policy.employeeName.ifBlank { "Syncing..." }}")
                 appendLine("Site: ${policy.companyName.ifBlank { "-" }}")
                 appendLine("Shift State: ${policy.shiftState}")
@@ -259,6 +260,44 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 8, 0, 20)
         }
         rootContainer.addView(info)
+
+        if (policy.latestVersionCode > ShiftFocusStore.INSTALLED_VERSION_CODE) {
+            rootContainer.addView(Button(this).apply {
+                text = "⬇️ Update App to v${policy.latestVersionName} (New Release)"
+                setOnClickListener {
+                    val baseUrl = ShiftFocusStore.getServerUrl(this@MainActivity)
+                    val targetUrl = if (policy.apkUrl.startsWith("http")) policy.apkUrl else "$baseUrl${policy.apkUrl}"
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+                }
+            })
+        }
+
+        rootContainer.addView(Button(this).apply {
+            text = "🔄 Check for App & Policy Updates"
+            setOnClickListener {
+                val baseUrl = ShiftFocusStore.getServerUrl(this@MainActivity)
+                val token = ShiftFocusStore.getDeviceToken(this@MainActivity) ?: return@setOnClickListener
+                thread {
+                    runCatching { ShiftFocusApi.fetchStatus(baseUrl, token) }
+                        .onSuccess { updated ->
+                            ShiftFocusStore.savePolicy(this@MainActivity, updated)
+                            runOnUiThread {
+                                renderUi()
+                                if (updated.latestVersionCode > ShiftFocusStore.INSTALLED_VERSION_CODE) {
+                                    val targetUrl = if (updated.apkUrl.startsWith("http")) updated.apkUrl else "$baseUrl${updated.apkUrl}"
+                                    Toast.makeText(this@MainActivity, "Downloading v${updated.latestVersionName} update…", Toast.LENGTH_LONG).show()
+                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+                                } else {
+                                    Toast.makeText(this@MainActivity, "Up to date (v${ShiftFocusStore.INSTALLED_VERSION_NAME}) — policy synced!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        .onFailure { err ->
+                            runOnUiThread { Toast.makeText(this@MainActivity, "Sync error: ${err.message}", Toast.LENGTH_SHORT).show() }
+                        }
+                }
+            }
+        })
 
         rootContainer.addView(Button(this).apply {
             text = "⚡ Emergency Override (Unlock All)"

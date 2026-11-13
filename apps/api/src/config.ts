@@ -40,6 +40,11 @@ export const config = {
   enrollmentTokenTtlHours: Number(env.ENROLLMENT_TOKEN_TTL_HOURS ?? 24),
   /** A device that has not checked in for this long is reported as stale. */
   deviceStaleMinutes: Number(env.DEVICE_Stale_MINUTES ?? env.DEVICE_STALE_MINUTES ?? 15),
+  workerApp: {
+    versionCode: Number(env.WORKER_APP_VERSION_CODE ?? 2),
+    versionName: env.WORKER_APP_VERSION_NAME ?? '1.1.0',
+    apkUrl: env.WORKER_APP_APK_URL ?? '/shiftfocus-worker.apk',
+  },
 };
 
 export function pgPoolConfig(connectionString = config.databaseUrl) {
